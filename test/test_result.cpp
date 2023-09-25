@@ -6,6 +6,12 @@
 
 sqlite3* db;
 
+class Tessst: public EzSql::BaseDBO
+{
+    public:
+    Tessst() = default;
+};
+
 class TestResult : public QObject {
     Q_OBJECT
 
@@ -93,9 +99,33 @@ class TestResult : public QObject {
         QVERIFY(result.map(int_value, "int_value"));
         QVERIFY(int_value == 13);
 
+        bool bool_value;
+        QVERIFY(result.map(bool_value, "int_value"));
+        QVERIFY(bool_value == true);
+
+        Tessst t;
+        QVERIFY(result.map(t));
+        // QVERIFY(bool_value == true);
+
         double real_value;
         QVERIFY(result.map(real_value, "real_value"));
         QVERIFY(real_value == 0.13);
+
+        QVERIFY(stmt.finalize() == SQLITE_OK);
+    }
+
+    void result2() {
+        EzSql::Stmt stmt(db);
+        QVERIFY(stmt.prepare("select count(*) from Test") == SQLITE_OK);        
+        QVERIFY(stmt.step() == SQLITE_ROW);
+
+        auto result = stmt.result();
+        qint32 numrow;
+        QVERIFY(result.map(numrow, "count(*)"));
+        QVERIFY(numrow == 1);
+
+        QVERIFY(result.map(numrow, 0));
+        QVERIFY(numrow == 1);
 
         QVERIFY(stmt.finalize() == SQLITE_OK);
     }

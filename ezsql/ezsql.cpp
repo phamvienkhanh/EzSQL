@@ -1,5 +1,7 @@
 #include "ezsql.h"
 
+#include <QDebug>
+
 #define VALIDATE_DB_STMT     \
     if (!_db || !_stmt) {    \
         return SQLITE_ERROR; \
@@ -106,6 +108,7 @@ Result::Result(sqlite3_stmt* stmt)
         qint32 cols = sqlite3_column_count(_stmt);
         for (auto i = 0; i < cols; i++) {
             QString colName(sqlite3_column_name(_stmt, i));
+            qDebug() << colName;
             _columns.insert(colName, i);
         }
     }
@@ -159,6 +162,16 @@ bool Result::map(double& value, int idx /*=0*/)
     VALIDATE_IDX;
 
     value = sqlite3_column_double(_stmt, idx);
+
+    return true;
+}
+
+bool Result::map(bool& value, int idx /*=0*/)
+{
+    VALIDATE_STMT;
+    VALIDATE_IDX;
+
+    value = sqlite3_column_int(_stmt, idx);
 
     return true;
 }
