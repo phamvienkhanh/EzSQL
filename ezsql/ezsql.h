@@ -9,10 +9,40 @@
 
 namespace EzSql {
 
-  enum FieldFlag {
+enum FieldFlag {
     NOT_NULL = 0,
     AUTOINCREMENT = 1 << 0,
-  };
+};
+
+class Result {
+  public:
+    Result(sqlite3_stmt* stmt = nullptr);
+
+    bool map(QString& value, int idx = 0);
+    bool map(QByteArray& value, int idx = 0);
+    bool map(qint32& value, int idx = 0);
+    bool map(qint64& value, int idx = 0);
+    bool map(double& value, int idx = 0);
+    bool map(bool& value, int idx = 0);
+
+    template <typename T>
+    bool map(T& value, const QString& name)
+    {
+        if (!_stmt) {
+            return false;
+        }
+
+        if (!_columns.contains(name)) {
+            return false;
+        }
+
+        return map(value, _columns[name]);
+    }
+
+  private:
+    QHash<QString, qint32> _columns;  // <colname, index>
+    sqlite3_stmt* _stmt = nullptr;
+};
 
 class BaseField {
   public:
@@ -21,6 +51,8 @@ class BaseField {
 
     QString name() const { return _name; }
     QString sqlType() const { return _sqlType; }
+
+    virtual void set(Result& result, const QString& prefixColName = "") = 0;
 
     QString sqlTypeFrom(const QString&) { return "TEXT"; }
     QString sqlTypeFrom(const QByteArray&) { return "BLOB"; }
@@ -46,6 +78,10 @@ class Field : public BaseField {
 
     void set(const T& value) { *_value = value; }
     T get() const { return *_value; }
+
+    void set(Result& result, const QString& prefixColName = "") override {
+        result.map(*_value, prefixColName + _name);
+    }
 
   private:
     T* _value;
@@ -77,6 +113,18 @@ class BaseDBO {
             else {
                 Q_ASSERT_X(false, "BaseDBO::set<T>", "invalid cast Field<T>*");
             }
+        }
+    }
+
+    void set(Result& result) {
+        QHashIterator<QString, BaseField*> it(_field);
+        if(_id) {
+            _id->set(result);
+        }
+
+        while (it.hasNext()) {
+            it.next();
+            it.value()->set(result);
         }
     }
 
@@ -154,43 +202,6 @@ class BaseDBO {
     QHash<QString, BaseField*> _field;
     BaseField* _id = nullptr;
     QString _tableName;
-};
-
-class Result {
-  public:
-    Result(sqlite3_stmt* stmt = nullptr);
-
-    bool map(QString& value, int idx = 0);
-    bool map(QByteArray& value, int idx = 0);
-    bool map(qint32& value, int idx = 0);
-    bool map(qint64& value, int idx = 0);
-    bool map(double& value, int idx = 0);
-    bool map(bool& value, int idx = 0);
-
-    template <typename T>
-    bool map(T& value, const QString& name)
-    {
-        if (!_stmt) {
-            return false;
-        }
-
-        if (!_columns.contains(name)) {
-            return false;
-        }
-
-        return map(value, _columns[name]);
-    }
-
-    template <typename T>
-    bool map(T& value)
-    {
-        static_assert(std::is_base_of_v<BaseDBO, T>, "map type T error. T must base of BaseDBO");
-        return true;
-    }
-
-  private:
-    QHash<QString, qint32> _columns;  // <colname, index>
-    sqlite3_stmt* _stmt = nullptr;
 };
 
 class Stmt {
