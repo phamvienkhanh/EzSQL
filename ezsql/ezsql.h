@@ -3,89 +3,234 @@
 
 #include <sqlite3.h>
 
+#include <QDebug>
 #include <QMap>
 #include <QString>
 
 namespace EzSql {
 
+  enum FieldFlag {
+    NOT_NULL = 0,
+    AUTOINCREMENT = 1 << 0,
+  };
+
+class BaseField {
+  public:
+    BaseField() = default;
+    virtual ~BaseField() = default;
+
+    QString name() const { return _name; }
+    QString sqlType() const { return _sqlType; }
+
+    QString sqlTypeFrom(const QString&) { return "TEXT"; }
+    QString sqlTypeFrom(const QByteArray&) { return "BLOB"; }
+    QString sqlTypeFrom(const qint32&) { return "INTEGER"; }
+    QString sqlTypeFrom(const qint64&) { return "INTEGER"; }
+    QString sqlTypeFrom(const double&) { return "REAL"; }
+    QString sqlTypeFrom(const bool&) { return "INTEGER"; }
+
+  protected:
+    QString _name;
+    QString _sqlType;
+};
+
+template <typename T>
+class Field : public BaseField {
+  public:
+    Field(T* value, const QString& name, const QString& sqlType)
+    {
+        _value = value;
+        _name = name;
+        _sqlType = sqlType == "" ? sqlTypeFrom(*value) : sqlType;
+    }
+
+    void set(const T& value) { *_value = value; }
+    T get() const { return *_value; }
+
+  private:
+    T* _value;
+};
+
 class BaseDBO {
-private:
-  /* data */
-public:
-  BaseDBO(/* args */) {}
-  ~BaseDBO() {}
+  public:
+    BaseDBO() = default;
+    virtual ~BaseDBO() {}
+
+    template <typename T>
+    void set(const QString& name, const T& value)
+    {
+        if (_id && name == _id->name()) {
+            if (Field<T>* field = dynamic_cast<Field<T>*>(_id)) {
+                field->set(value);
+            }
+            else {
+                Q_ASSERT_X(false, "BaseDBO::set<T>", "invalid cast Field<T>* id");
+            }
+
+            return;
+        }
+
+        if (_field.contains(name)) {
+            if (Field<T>* field = dynamic_cast<Field<T>*>(_field[name])) {
+                field->set(value);
+            }
+            else {
+                Q_ASSERT_X(false, "BaseDBO::set<T>", "invalid cast Field<T>*");
+            }
+        }
+    }
+
+    template <typename T>
+    T get(const QString& name) const
+    {
+        T rs;
+        if (_id && name == _id->name()) {
+            if (Field<T>* field = dynamic_cast<Field<T>*>(_id)) {
+                rs = field->get();
+            }
+            else {
+                Q_ASSERT_X(false, "BaseDBO::set<T>", "invalid cast Field<T>* id");
+            }
+
+            return rs;
+        }
+
+        if (_field.contains(name)) {
+            if (Field<T>* field = dynamic_cast<Field<T>*>(_field[name])) {
+                rs = field->get();
+            }
+            else {
+                Q_ASSERT_X(false, "BaseDBO::get<T>", "invalid cast Field<T>*");
+            }
+        }
+
+        return rs;
+    }
+
+    QString createStmt()
+    {
+        QString listFields = "(";
+        if (_id) {
+            listFields += (_id->name() + " " + _id->sqlType() + " NOT NULL PRIMARY KEY, ");
+        }
+
+        QHashIterator<QString, BaseField*> i(_field);
+        while (i.hasNext()) {
+            i.next();
+            listFields += (i.key() + " " + i.value()->sqlType() + ", ");
+        }
+        listFields.chop(2);
+        listFields += ")";
+
+        QString stmt = "CREATE TABLE IF NOT EXISTS " + _tableName + " " + listFields;
+
+        return stmt;
+    }
+
+  protected:
+    template <typename T>
+    void field(const QString& name, T* value, const QString& sqlType = "")
+    {
+        if (!_field.contains(name)) {
+            BaseField* field = new Field(value, name, sqlType);
+            _field.insert(name, field);
+        }
+    }
+
+    template <typename T>
+    void id(const QString& name, T* value, const QString& sqlType = "")
+    {
+        if (!_id) {
+            BaseField* field = new Field(value, name, sqlType);
+            _id = field;
+        }
+    }
+
+    void table(const QString& name) { _tableName = name; }
+
+    virtual void fields() = 0;
+
+  private:
+    QHash<QString, BaseField*> _field;
+    BaseField* _id = nullptr;
+    QString _tableName;
 };
 
 class Result {
-public:
-  Result(sqlite3_stmt *stmt = nullptr);
+  public:
+    Result(sqlite3_stmt* stmt = nullptr);
 
-  bool map(QString &value, int idx = 0);
-  bool map(QByteArray &value, int idx = 0);
-  bool map(qint32 &value, int idx = 0);
-  bool map(qint64 &value, int idx = 0);
-  bool map(double &value, int idx = 0);
-  bool map(bool &value, int idx = 0);
+    bool map(QString& value, int idx = 0);
+    bool map(QByteArray& value, int idx = 0);
+    bool map(qint32& value, int idx = 0);
+    bool map(qint64& value, int idx = 0);
+    bool map(double& value, int idx = 0);
+    bool map(bool& value, int idx = 0);
 
-  template <typename T> bool map(T &value, const QString &name) {
-    if (!_stmt) {
-      return false;
+    template <typename T>
+    bool map(T& value, const QString& name)
+    {
+        if (!_stmt) {
+            return false;
+        }
+
+        if (!_columns.contains(name)) {
+            return false;
+        }
+
+        return map(value, _columns[name]);
     }
 
-    if (!_columns.contains(name)) {
-      return false;
+    template <typename T>
+    bool map(T& value)
+    {
+        static_assert(std::is_base_of_v<BaseDBO, T>, "map type T error. T must base of BaseDBO");
+        return true;
     }
 
-    return map(value, _columns[name]);
-  }
-
-  template <typename T> bool map(T &value) {
-    static_assert(std::is_base_of_v<BaseDBO, T>,
-                  "map type T error. T must base of BaseDBO");
-    return true;
-  }
-
-private:
-  QMap<QString, qint32> _columns; // <colname, index>
-  sqlite3_stmt *_stmt = nullptr;
+  private:
+    QHash<QString, qint32> _columns;  // <colname, index>
+    sqlite3_stmt* _stmt = nullptr;
 };
 
 class Stmt {
-public:
-  Stmt(sqlite3 *db = nullptr);
-  int prepare(const QString &query);
+  public:
+    Stmt(sqlite3* db = nullptr);
+    int prepare(const QString& query);
 
-  int bind(int idx, const QByteArray &value);
-  int bind(int idx, const QString &value);
-  int bind(int idx, qint32 value);
-  int bind(int idx, qint64 value);
-  int bind(int idx, double value);
+    int bind(int idx, const QByteArray& value);
+    int bind(int idx, const QString& value);
+    int bind(int idx, qint32 value);
+    int bind(int idx, qint64 value);
+    int bind(int idx, double value);
 
-  template <typename T> int bind(const QString &name, const T &value) {
-    if (!_db || !_stmt) {
-      return SQLITE_ERROR;
+    template <typename T>
+    int bind(const QString& name, const T& value)
+    {
+        if (!_db || !_stmt) {
+            return SQLITE_ERROR;
+        }
+
+        int idx = sqlite3_bind_parameter_index(_stmt, name.toUtf8());
+        if (!idx) {
+            return SQLITE_ERROR;
+        }
+
+        return bind(idx, value);
     }
 
-    int idx = sqlite3_bind_parameter_index(_stmt, name.toUtf8());
-    if (!idx) {
-      return SQLITE_ERROR;
-    }
+    int step();
+    Result result();
+    int finalize();
+    int reset();
 
-    return bind(idx, value);
-  }
+    inline void db(sqlite3* db) { _db = db; }
 
-  int step();
-  Result result();
-  int finalize();
-  int reset();
-
-  inline void db(sqlite3 *db) { _db = db; }
-
-private:
-  sqlite3_stmt *_stmt = nullptr;
-  sqlite3 *_db = nullptr;
+  private:
+    sqlite3_stmt* _stmt = nullptr;
+    sqlite3* _db = nullptr;
 };
 
-} // namespace EzSql
+}  // namespace EzSql
 
-#endif // EZSQL_H
+#endif  // EZSQL_H

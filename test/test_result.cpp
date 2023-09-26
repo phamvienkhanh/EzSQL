@@ -6,17 +6,11 @@
 
 sqlite3* db;
 
-class Tessst: public EzSql::BaseDBO
-{
-    public:
-    Tessst() = default;
-};
-
 class TestResult : public QObject {
     Q_OBJECT
 
   private slots:
-  void create_db()
+    void create_db()
     {
         QFile::remove("./test_result.db");
 
@@ -75,7 +69,8 @@ class TestResult : public QObject {
         QVERIFY(stmt.finalize() == SQLITE_OK);
     }
 
-    void result1() {
+    void result1()
+    {
         EzSql::Stmt stmt(db);
         QVERIFY(stmt.prepare("select * from Test where id = :id") == SQLITE_OK);
         QVERIFY(stmt.bind(":id", 1) == SQLITE_OK);
@@ -103,10 +98,6 @@ class TestResult : public QObject {
         QVERIFY(result.map(bool_value, "int_value"));
         QVERIFY(bool_value == true);
 
-        Tessst t;
-        QVERIFY(result.map(t));
-        // QVERIFY(bool_value == true);
-
         double real_value;
         QVERIFY(result.map(real_value, "real_value"));
         QVERIFY(real_value == 0.13);
@@ -114,9 +105,10 @@ class TestResult : public QObject {
         QVERIFY(stmt.finalize() == SQLITE_OK);
     }
 
-    void result2() {
+    void result2()
+    {
         EzSql::Stmt stmt(db);
-        QVERIFY(stmt.prepare("select count(*) from Test") == SQLITE_OK);        
+        QVERIFY(stmt.prepare("select count(*) from Test") == SQLITE_OK);
         QVERIFY(stmt.step() == SQLITE_ROW);
 
         auto result = stmt.result();
