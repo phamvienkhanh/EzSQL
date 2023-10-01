@@ -105,8 +105,8 @@ Result::Result(sqlite3_stmt* stmt)
     _stmt = stmt;
 
     if (_stmt) {
-        qint32 cols = sqlite3_column_count(_stmt);
-        for (auto i = 0; i < cols; i++) {
+        _count = sqlite3_column_count(_stmt);
+        for (auto i = 0; i < _count; i++) {
             QString colName(sqlite3_column_name(_stmt, i));
             _columns.insert(colName, i);
         }

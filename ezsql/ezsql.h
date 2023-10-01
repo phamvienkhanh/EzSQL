@@ -9,11 +9,6 @@
 
 namespace EzSql {
 
-enum FieldFlag {
-    NOT_NULL = 0,
-    AUTOINCREMENT = 1 << 0,
-};
-
 class Result {
   public:
     Result(sqlite3_stmt* stmt = nullptr);
@@ -24,6 +19,7 @@ class Result {
     bool map(qint64& value, int idx = 0);
     bool map(double& value, int idx = 0);
     bool map(bool& value, int idx = 0);
+    qint32 count() const { return _count; }
 
     template <typename T>
     bool map(T& value, const QString& name)
@@ -42,166 +38,7 @@ class Result {
   private:
     QHash<QString, qint32> _columns;  // <colname, index>
     sqlite3_stmt* _stmt = nullptr;
-};
-
-class BaseField {
-  public:
-    BaseField() = default;
-    virtual ~BaseField() = default;
-
-    QString name() const { return _name; }
-    QString sqlType() const { return _sqlType; }
-
-    virtual void set(Result& result, const QString& prefixColName = "") = 0;
-
-    QString sqlTypeFrom(const QString&) { return "TEXT"; }
-    QString sqlTypeFrom(const QByteArray&) { return "BLOB"; }
-    QString sqlTypeFrom(const qint32&) { return "INTEGER"; }
-    QString sqlTypeFrom(const qint64&) { return "INTEGER"; }
-    QString sqlTypeFrom(const double&) { return "REAL"; }
-    QString sqlTypeFrom(const bool&) { return "INTEGER"; }
-
-  protected:
-    QString _name;
-    QString _sqlType;
-};
-
-template <typename T>
-class Field : public BaseField {
-  public:
-    Field(T* value, const QString& name, const QString& sqlType)
-    {
-        _value = value;
-        _name = name;
-        _sqlType = sqlType == "" ? sqlTypeFrom(*value) : sqlType;
-    }
-
-    void set(const T& value) { *_value = value; }
-    T get() const { return *_value; }
-
-    void set(Result& result, const QString& prefixColName = "") override {
-        result.map(*_value, prefixColName + _name);
-    }
-
-  private:
-    T* _value;
-};
-
-class BaseDBO {
-  public:
-    BaseDBO() = default;
-    virtual ~BaseDBO() {}
-
-    template <typename T>
-    void set(const QString& name, const T& value)
-    {
-        if (_id && name == _id->name()) {
-            if (Field<T>* field = dynamic_cast<Field<T>*>(_id)) {
-                field->set(value);
-            }
-            else {
-                Q_ASSERT_X(false, "BaseDBO::set<T>", "invalid cast Field<T>* id");
-            }
-
-            return;
-        }
-
-        if (_field.contains(name)) {
-            if (Field<T>* field = dynamic_cast<Field<T>*>(_field[name])) {
-                field->set(value);
-            }
-            else {
-                Q_ASSERT_X(false, "BaseDBO::set<T>", "invalid cast Field<T>*");
-            }
-        }
-    }
-
-    void set(Result& result) {
-        QHashIterator<QString, BaseField*> it(_field);
-        if(_id) {
-            _id->set(result);
-        }
-
-        while (it.hasNext()) {
-            it.next();
-            it.value()->set(result);
-        }
-    }
-
-    template <typename T>
-    T get(const QString& name) const
-    {
-        T rs;
-        if (_id && name == _id->name()) {
-            if (Field<T>* field = dynamic_cast<Field<T>*>(_id)) {
-                rs = field->get();
-            }
-            else {
-                Q_ASSERT_X(false, "BaseDBO::set<T>", "invalid cast Field<T>* id");
-            }
-
-            return rs;
-        }
-
-        if (_field.contains(name)) {
-            if (Field<T>* field = dynamic_cast<Field<T>*>(_field[name])) {
-                rs = field->get();
-            }
-            else {
-                Q_ASSERT_X(false, "BaseDBO::get<T>", "invalid cast Field<T>*");
-            }
-        }
-
-        return rs;
-    }
-
-    QString createStmt()
-    {
-        QString listFields = "(";
-        if (_id) {
-            listFields += (_id->name() + " " + _id->sqlType() + " NOT NULL PRIMARY KEY, ");
-        }
-
-        QHashIterator<QString, BaseField*> i(_field);
-        while (i.hasNext()) {
-            i.next();
-            listFields += (i.key() + " " + i.value()->sqlType() + ", ");
-        }
-        listFields.chop(2);
-        listFields += ")";
-
-        QString stmt = "CREATE TABLE IF NOT EXISTS " + _tableName + " " + listFields;
-
-        return stmt;
-    }
-
-  protected:
-    template <typename T>
-    void field(const QString& name, T* value, const QString& sqlType = "")
-    {
-        if (!_field.contains(name)) {
-            BaseField* field = new Field(value, name, sqlType);
-            _field.insert(name, field);
-        }
-    }
-
-    template <typename T>
-    void id(const QString& name, T* value, const QString& sqlType = "")
-    {
-        if (!_id) {
-            BaseField* field = new Field(value, name, sqlType);
-            _id = field;
-        }
-    }
-
-    void table(const QString& name) { _tableName = name; }
-
-    virtual void fields() = 0;
-
-  private:
-    QHash<QString, BaseField*> _field;
-    BaseField* _id = nullptr;
-    QString _tableName;
+    qint32 _count = 0;
 };
 
 class Stmt {
@@ -240,6 +77,297 @@ class Stmt {
   private:
     sqlite3_stmt* _stmt = nullptr;
     sqlite3* _db = nullptr;
+};
+
+class BaseField {
+  public:
+    BaseField() = default;
+    virtual ~BaseField() = default;
+
+    QString name() const { return _name; }
+    QString sqlType() const { return _sqlType; }
+    QString columnConstraint() const { return _columnConstraint; }
+
+    virtual void set(Result& result, const QString& prefixColName = "") = 0;
+    virtual int bind(Stmt& stmt, qint32 idx) = 0;
+
+    QString sqlTypeFrom(const QString&) { return "TEXT"; }
+    QString sqlTypeFrom(const QByteArray&) { return "BLOB"; }
+    QString sqlTypeFrom(const qint32&) { return "INTEGER"; }
+    QString sqlTypeFrom(const qint64&) { return "INTEGER"; }
+    QString sqlTypeFrom(const double&) { return "REAL"; }
+    QString sqlTypeFrom(const bool&) { return "INTEGER"; }
+
+  protected:
+    QString _name;
+    QString _sqlType;
+    QString _columnConstraint;
+};
+
+template <typename T>
+class Field : public BaseField {
+  public:
+    Field(T* value, const QString& name, const QString& sqlType, const QString& constraint)
+    {
+        _value = value;
+        _name = name;
+        _sqlType = sqlType == "" ? sqlTypeFrom(*value) : sqlType;
+        _columnConstraint = constraint;
+    }
+
+    void set(const T& value) { *_value = value; }
+    T get() const { return *_value; }
+
+    void set(Result& result, const QString& prefixColName = "") override
+    {
+        result.map(*_value, prefixColName + _name);
+    }
+
+    int bind(Stmt& stmt, qint32 idx) override { return stmt.bind(idx, *_value); }
+
+  private:
+    T* _value;
+};
+
+class BaseDBO {
+  public:
+    BaseDBO() = default;
+    virtual ~BaseDBO() {}
+
+    template <typename T>
+    void set(const QString& name, const T& value)
+    {
+        if (_id && name == _id->name()) {
+            if (Field<T>* field = dynamic_cast<Field<T>*>(_id)) {
+                field->set(value);
+            }
+            else {
+                Q_ASSERT_X(false, "BaseDBO::set<T>", "invalid cast Field<T>* id");
+            }
+
+            return;
+        }
+
+        if (_field.contains(name)) {
+            if (Field<T>* field = dynamic_cast<Field<T>*>(_field[name])) {
+                field->set(value);
+            }
+            else {
+                Q_ASSERT_X(false, "BaseDBO::set<T>", "invalid cast Field<T>*");
+            }
+        }
+    }
+
+    void set(Result& result)
+    {
+        if (_id) {
+            _id->set(result);
+        }
+
+        QHashIterator<QString, BaseField*> it(_field);
+        while (it.hasNext()) {
+            it.next();
+            it.value()->set(result);
+        }
+    }
+
+    void set(const QString& name, Result& result, const QString& prefixName = "")
+    {
+        if (_id && _id->name() == name) {
+            _id->set(result);
+            return;
+        }
+
+        if (_field.contains(name)) {
+            _field[name]->set(result, prefixName);
+        }
+    }
+
+    void setId(Result& result)
+    {
+        if (_id) {
+            _id->set(result);
+        }
+    }
+
+    int bind(Stmt& stmt, qint32 baseIdx = 0)
+    {
+        int rs;
+        qint32 numValues = _field.size();
+        qint32 idx = baseIdx;
+        if (_id && !_id->columnConstraint().toUpper().contains("AUTOINCREMENT")) {
+            idx += 1;
+            rs = _id->bind(stmt, idx);
+            if(rs != SQLITE_OK) {
+                return rs;
+            }
+        }
+
+        QHashIterator<QString, BaseField*> it(_field);
+        while (it.hasNext()) {
+            it.next();
+            idx += 1;
+            rs = it.value()->bind(stmt, idx);
+            if(rs != SQLITE_OK) {
+                return rs;
+            }
+        }
+
+        return SQLITE_OK;
+    }
+
+    template <typename T>
+    T get(const QString& name) const
+    {
+        T rs;
+        if (_id && name == _id->name()) {
+            if (Field<T>* field = dynamic_cast<Field<T>*>(_id)) {
+                rs = field->get();
+            }
+            else {
+                Q_ASSERT_X(false, "BaseDBO::set<T>", "invalid cast Field<T>* id");
+            }
+
+            return rs;
+        }
+
+        if (_field.contains(name)) {
+            if (Field<T>* field = dynamic_cast<Field<T>*>(_field[name])) {
+                rs = field->get();
+            }
+            else {
+                Q_ASSERT_X(false, "BaseDBO::get<T>", "invalid cast Field<T>*");
+            }
+        }
+
+        return rs;
+    }
+
+    QString createStmt()
+    {
+        fields();
+        QString listFields = "(";
+        if (_id) {
+            listFields = listFields + _id->name() + " " + _id->sqlType() + " " +
+                         _id->columnConstraint() + ", ";
+        }
+
+        QHashIterator<QString, BaseField*> i(_field);
+        while (i.hasNext()) {
+            i.next();
+            listFields = listFields + (i.key() + " " + i.value()->sqlType() + " " +
+                                       i.value()->columnConstraint() + ", ");
+        }
+        listFields.chop(2);
+        listFields += ")";
+
+        QString stmt = "CREATE TABLE IF NOT EXISTS " + _tableName + " " + listFields;
+
+        return stmt;
+    }
+
+    QString insertStmt(int numRecord = 1)
+    {
+        fields();
+
+        int numValues = _field.size();
+        QString returnning = "";
+        QString listFields = "(";
+        if (_id) {
+            returnning = " RETURNING " + _id->name();
+
+            if (!_id->columnConstraint().toUpper().contains("AUTOINCREMENT")) {
+                listFields = listFields + _id->name() + ", ";
+                numValues += 1;
+            }
+        }
+
+        QHashIterator<QString, BaseField*> i(_field);
+        while (i.hasNext()) {
+            i.next();
+            listFields = listFields + i.key() + ", ";
+        }
+        listFields.chop(2);
+        listFields += ")";
+
+        QString values = "(";
+        for (int i = 0; i < numValues; i++) {
+            values = values + "?, ";
+        }
+        values.chop(2);
+        values += ")";
+
+        QString records;
+        for (int i = 0; i < numRecord; i++) {
+            records = records + values + ", ";
+        }
+        records.chop(2);
+
+        QString stmt = "INSERT INTO " + _tableName + listFields + " VALUES " + records + returnning;
+
+        return stmt;
+    }
+
+    QString updateStmt(const QStringList& columns = {})
+    {
+        fields();
+
+        int numValues = _field.size();
+        QString listFields = "";
+        if (!_id) {
+            Q_ASSERT_X(false, "BaseDBO::updateStmt", "cant update dbo without id field");
+        }
+
+        if(!columns.isEmpty()) {
+            for(const auto& iCol : columns) {
+                if(_field.contains(iCol)) {
+                    listFields = listFields + iCol + "=?, ";
+                }
+            }
+        }
+        else {
+            QHashIterator<QString, BaseField*> i(_field);
+            while (i.hasNext()) {
+                i.next();
+                listFields = listFields + i.key() + "=?, ";
+            }
+            listFields.chop(2);
+        }
+        
+        QString stmt = "UPDATE " + _tableName + " SET " + listFields + " WHERE " + _id->name() + "=?";
+
+        return stmt;
+    }
+
+  protected:
+    template <typename T>
+    void field(const QString& name, T* value, const QString& sqlType = "",
+               const QString& constraint = "")
+    {
+        if (!_field.contains(name)) {
+            BaseField* field = new Field(value, name, sqlType, constraint);
+            _field.insert(name, field);
+        }
+    }
+
+    template <typename T>
+    void id(const QString& name, T* value, const QString& sqlType = "",
+            const QString& constraint = "")
+    {
+        if (!_id) {
+            BaseField* field = new Field(value, name, sqlType, constraint);
+            _id = field;
+        }
+    }
+
+    void table(const QString& name) { _tableName = name; }
+
+    virtual void fields() = 0;
+
+  private:
+    QHash<QString, BaseField*> _field;
+    BaseField* _id = nullptr;
+    QString _tableName;
 };
 
 }  // namespace EzSql
