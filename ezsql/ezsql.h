@@ -11,7 +11,7 @@ namespace EzSql {
 
 class Result {
   public:
-    Result(sqlite3_stmt* stmt = nullptr);
+    explicit Result(sqlite3_stmt* stmt = nullptr);
 
     bool map(QString& value, int idx = 0);
     bool map(QByteArray& value, int idx = 0);
@@ -43,7 +43,7 @@ class Result {
 
 class Stmt {
   public:
-    Stmt(sqlite3* db = nullptr);
+    explicit Stmt(sqlite3* db = nullptr);
     int prepare(const QString& query);
 
     int bind(int idx, const QByteArray& value);
@@ -90,6 +90,7 @@ class BaseField {
 
     virtual void set(Result& result, const QString& prefixColName = "") = 0;
     virtual int bind(Stmt& stmt, qint32 idx) = 0;
+    virtual int bind(Stmt& stmt) = 0;
 
     QString sqlTypeFrom(const QString&) { return "TEXT"; }
     QString sqlTypeFrom(const QByteArray&) { return "BLOB"; }
@@ -124,6 +125,7 @@ class Field : public BaseField {
     }
 
     int bind(Stmt& stmt, qint32 idx) override { return stmt.bind(idx, *_value); }
+    int bind(Stmt& stmt) override { return stmt.bind(":" + _name, *_value); }
 
   private:
     T* _value;
@@ -132,7 +134,7 @@ class Field : public BaseField {
 class BaseDBO {
   public:
     BaseDBO() = default;
-    virtual ~BaseDBO() {}
+    virtual ~BaseDBO() = default;
 
     template <typename T>
     void set(const QString& name, const T& value)
@@ -210,6 +212,29 @@ class BaseDBO {
             rs = it.value()->bind(stmt, idx);
             if(rs != SQLITE_OK) {
                 return rs;
+            }
+        }
+
+        return SQLITE_OK;
+    }
+
+    int bind(Stmt &stmt, const QStringList &fields)
+    {
+        int rs;
+
+        for (auto &col : fields) {
+            if (_id->name() == col) {
+                rs = _id->bind(stmt);
+                if (rs != SQLITE_OK) {
+                    return rs;
+                }
+                continue;
+            }
+            if (_field.contains(col)) {
+                rs = _field[col]->bind(stmt);
+                if (rs != SQLITE_OK) {
+                    return rs;
+                }
             }
         }
 
@@ -321,7 +346,7 @@ class BaseDBO {
         if(!columns.isEmpty()) {
             for(const auto& iCol : columns) {
                 if(_field.contains(iCol)) {
-                    listFields = listFields + iCol + "=?, ";
+                    listFields = listFields + QString("%1=:%1, ").arg(iCol);
                 }
             }
         }
@@ -329,14 +354,20 @@ class BaseDBO {
             QHashIterator<QString, BaseField*> i(_field);
             while (i.hasNext()) {
                 i.next();
-                listFields = listFields + i.key() + "=?, ";
+                listFields = listFields + QString("%1=:%1, ").arg(i.key());
             }
             listFields.chop(2);
         }
         
-        QString stmt = "UPDATE " + _tableName + " SET " + listFields + " WHERE " + _id->name() + "=?";
+        QString stmt = "UPDATE " + _tableName + " SET " + listFields + " WHERE " + QString("%1=:%1").arg(_id->name());
 
         return stmt;
+    }
+
+    QStringList allFieldName() {
+        QStringList fieldsName = _field.keys();
+        fieldsName << _id->name();
+        return fieldsName;
     }
 
   protected:
