@@ -106,9 +106,9 @@ class TestBaseDBO : public QObject {
         TestDBO a;
         a._id = 1;
         a._text = "text updated";
-        a._int64 = 0;
+        a._int64 = 5;
         a._boolean = false;
-        a._double = 0.0;
+        a._double = 1.0;
 
         EzSql::Stmt stmt(db);
         qDebug() << a.updateStmt();
@@ -118,16 +118,18 @@ class TestBaseDBO : public QObject {
         QVERIFY(stmt.finalize() == SQLITE_OK);
     }
 
-    // void update_stmt_bind_name()
-    // {
-    //     TestDBO a;
+    void update_stmt_bind_name()
+    {
+        TestDBO a;
+        a._id = 1;
+        a._blob = QByteArray("blob data new");
 
-    //     EzSql::Stmt stmt(db);
-    //     QVERIFY(stmt.prepare(a.updateStmt()) == SQLITE_OK);
-    //     QVERIFY(a.bind(stmt) == SQLITE_OK);
-    //     QVERIFY(stmt.step() == SQLITE_DONE);
-    //     QVERIFY(stmt.finalize() == SQLITE_OK);
-    // }
+        EzSql::Stmt stmt(db);
+        QVERIFY(stmt.prepare(a.updateStmt({"field_blob"})) == SQLITE_OK);
+        QVERIFY(a.bind(stmt, {"field_blob", "id"}) == SQLITE_OK);
+        QVERIFY(stmt.step() == SQLITE_DONE);
+        QVERIFY(stmt.finalize() == SQLITE_OK);
+    }
 };
 
 QTEST_MAIN(TestBaseDBO)

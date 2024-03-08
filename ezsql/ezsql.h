@@ -355,9 +355,9 @@ class BaseDBO {
             while (i.hasNext()) {
                 i.next();
                 listFields = listFields + QString("%1=:%1, ").arg(i.key());
-            }
-            listFields.chop(2);
+            }            
         }
+        listFields.chop(2);
         
         QString stmt = "UPDATE " + _tableName + " SET " + listFields + " WHERE " + QString("%1=:%1").arg(_id->name());
 
