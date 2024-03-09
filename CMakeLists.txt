@@ -32,3 +32,8 @@ add_executable(ezsql_test_basedbo test/test_basedbo.cpp)
 add_test(NAME Test_basedbo COMMAND ezsql_test_basedbo)
 target_include_directories(ezsql_test_basedbo PRIVATE ezsql)
 target_link_libraries(ezsql_test_basedbo PRIVATE EzSql Qt6::Test)
+
+add_executable(ezsql_test_db test/test_db.cpp)
+add_test(NAME Test_db COMMAND ezsql_test_db)
+target_include_directories(ezsql_test_db PRIVATE ezsql)
+target_link_libraries(ezsql_test_db PRIVATE EzSql Qt6::Test)

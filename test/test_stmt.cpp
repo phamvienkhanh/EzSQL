@@ -18,7 +18,7 @@ class TestStmt : public QObject {
                                  SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX,
                                  nullptr);
 
-        QVERIFY2(rs == SQLITE_OK, "create db failed");
+        QVERIFY2(rs == SQLITE_OK, "create db failed");        
     }
 
     void create_table()

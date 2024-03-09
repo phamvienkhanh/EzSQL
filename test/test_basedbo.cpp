@@ -111,7 +111,6 @@ class TestBaseDBO : public QObject {
         a._double = 1.0;
 
         EzSql::Stmt stmt(db);
-        qDebug() << a.updateStmt();
         QVERIFY(stmt.prepare(a.updateStmt()) == SQLITE_OK);
         QVERIFY(a.bind(stmt, a.allFieldName()) == SQLITE_OK);
         QVERIFY(stmt.step() == SQLITE_DONE);

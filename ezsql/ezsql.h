@@ -364,6 +364,10 @@ class BaseDBO {
         return stmt;
     }
 
+    QString dropStmt() {
+        return "DROP TABLE IF EXISTS " + _tableName;
+    }
+
     QStringList allFieldName() {
         QStringList fieldsName = _field.keys();
         fieldsName << _id->name();
@@ -399,6 +403,50 @@ class BaseDBO {
     QHash<QString, BaseField*> _field;
     BaseField* _id = nullptr;
     QString _tableName;
+};
+
+class DataBase
+{
+public:
+    struct OpenParams
+    {
+        QString fileName;
+        int flags = 0;
+    };
+
+public:
+    DataBase() = default;
+    bool open(const OpenParams& params);
+    void close();
+
+    template<typename T>
+    bool createTable() {
+        static_assert(std::is_base_of_v<BaseDBO, T>, "Error: type T must base on BaseDBO");
+
+        if(!_db) {
+            return false;
+        }
+
+        T tb;
+        tb.fields();
+
+        QString queryCreate = tb.createStmt();
+        Stmt stmt(_db);
+        if(stmt.prepare(queryCreate) != SQLITE_OK) {
+            return false;
+        }
+        if(stmt.step() != SQLITE_DONE) {
+            return false;
+        }
+        if(stmt.finalize() != SQLITE_OK) {
+            return false;
+        }
+
+        return true;
+    }
+
+private:
+    sqlite3* _db = nullptr;
 };
 
 }  // namespace EzSql

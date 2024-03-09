@@ -171,4 +171,26 @@ bool Result::map(bool &value, int idx /*=0*/)
     return true;
 }
 
+bool DataBase::open(const OpenParams &params)
+{
+    if (params.fileName.isEmpty() || !params.flags) {
+        return false;
+    }
+
+    if (sqlite3_open_v2(params.fileName.toUtf8(), &_db, params.flags, nullptr) != SQLITE_OK) {
+        _db = nullptr;
+        return false;
+    }
+
+    return true;
+}
+
+void DataBase::close()
+{
+    if (_db) {
+        sqlite3_close_v2(_db);
+        _db = nullptr;
+    }
+}
+
 } // namespace EzSql
