@@ -1,0 +1,4 @@
+[submodule "ezsql/sqlcipher"]
+	path = ezsql/sqlcipher
+	url = https://github.com/sqlcipher/sqlcipher.git
+	branch = master

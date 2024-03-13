@@ -1,11 +1,11 @@
 #ifndef EZSQL_H
 #define EZSQL_H
 
-#include <sqlite3.h>
-
 #include <QDebug>
 #include <QMap>
 #include <QString>
+
+#include <sqlite3.h>
 
 namespace EzSql {
 
@@ -72,7 +72,7 @@ class Stmt {
     int finalize();
     int reset();
 
-    inline void db(sqlite3* db) { _db = db; }
+    void db(sqlite3* db) { _db = db; }
 
   private:
     sqlite3_stmt* _stmt = nullptr;
@@ -100,6 +100,7 @@ class BaseField {
     QString sqlTypeFrom(const bool&) { return "INTEGER"; }
 
   protected:
+    int _index = 0;
     QString _name;
     QString _sqlType;
     QString _columnConstraint;
@@ -108,8 +109,9 @@ class BaseField {
 template <typename T>
 class Field : public BaseField {
   public:
-    Field(T* value, const QString& name, const QString& sqlType, const QString& constraint)
+    Field(T* value, const QString& name, int index, const QString& sqlType, const QString& constraint)
     {
+        _index = index;
         _value = value;
         _name = name;
         _sqlType = sqlType == "" ? sqlTypeFrom(*value) : sqlType;
@@ -380,8 +382,10 @@ class BaseDBO {
                const QString& constraint = "")
     {
         if (!_field.contains(name)) {
-            BaseField* field = new Field(value, name, sqlType, constraint);
+            int fieldIndex = _fieldIndex.count() + 1;
+            BaseField* field = new Field(value, name, fieldIndex,  sqlType, constraint);
             _field.insert(name, field);
+            _fieldIndex.insert(name, fieldIndex);
         }
     }
 
@@ -390,8 +394,10 @@ class BaseDBO {
             const QString& constraint = "")
     {
         if (!_id) {
-            BaseField* field = new Field(value, name, sqlType, constraint);
+            int fieldIndex = _fieldIndex.count() + 1;
+            BaseField* field = new Field(value, name, fieldIndex, sqlType, constraint);
             _id = field;
+            _fieldIndex.insert(name, fieldIndex);
         }
     }
 
@@ -400,6 +406,7 @@ class BaseDBO {
     virtual void fields() = 0;
 
   private:
+    QHash<QString, int> _fieldIndex;
     QHash<QString, BaseField*> _field;
     BaseField* _id = nullptr;
     QString _tableName;
@@ -418,6 +425,8 @@ public:
     DataBase() = default;
     bool open(const OpenParams& params);
     void close();
+    sqlite3* connection() const {return _db;}
+    virtual void onPreUpdate() {}
 
     template<typename T>
     bool createTable() {

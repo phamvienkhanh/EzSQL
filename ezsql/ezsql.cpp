@@ -182,6 +182,28 @@ bool DataBase::open(const OpenParams &params)
         return false;
     }
 
+    sqlite3_preupdate_hook(
+
+        _db,
+        [](void *pCtx,          /* Copy of third arg to preupdate_hook() */
+           sqlite3 *db,         /* Database handle */
+           int op,              /* SQLITE_UPDATE, DELETE or INSERT */
+           char const *zDb,     /* Database name */
+           char const *zName,   /* Table name */
+           sqlite3_int64 iKey1, /* Rowid of row about to be deleted/updated */
+           sqlite3_int64 iKey2) {
+
+            qDebug() << "=====================================";
+            qDebug() << "name table " << zName;
+            qDebug() << "name db " << zDb;
+            qDebug() << "op " << op;
+            qDebug() << "iKey1 " << iKey1;
+            qDebug() << "iKey2 " << iKey2;
+            qDebug() << "=====================================";
+
+        },
+        nullptr);
+
     return true;
 }
 

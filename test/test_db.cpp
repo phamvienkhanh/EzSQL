@@ -52,6 +52,42 @@ private slots:
         bool rs = db.createTable<TestDBO>();
         QVERIFY2(rs, "create table TestDBO failed");
     }
+
+    void insert_stmt()
+    {
+        TestDBO a;
+        a._int64 = 1233333;
+        a._boolean = false;
+        a._text = "something data";
+        a._double = 0.13;
+
+        EzSql::Stmt stmt(db.connection());
+        QVERIFY(stmt.prepare(a.insertStmt()) == SQLITE_OK);
+        QVERIFY(a.bind(stmt, 0) == SQLITE_OK);
+        QVERIFY(stmt.step() == SQLITE_ROW);
+        auto result = stmt.result();
+        a.setId(result);
+        QVERIFY(a._id == 1);
+        QVERIFY(stmt.step() == SQLITE_DONE);
+
+        QVERIFY(stmt.finalize() == SQLITE_OK);
+    }
+
+    void update_stmt()
+    {
+        TestDBO a;
+        a._id = 1;
+        a._text = "text updated";
+        a._int64 = 5;
+        a._boolean = false;
+        a._double = 1.0;
+
+        EzSql::Stmt stmt(db.connection());
+        QVERIFY(stmt.prepare(a.updateStmt()) == SQLITE_OK);
+        QVERIFY(a.bind(stmt, a.allFieldName()) == SQLITE_OK);
+        QVERIFY(stmt.step() == SQLITE_DONE);
+        QVERIFY(stmt.finalize() == SQLITE_OK);
+    }
 };
 
 QTEST_MAIN(TestDB)
