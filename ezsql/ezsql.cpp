@@ -2,30 +2,27 @@
 
 #include <QDebug>
 
-#define VALIDATE_DB_STMT \
-    if (!_db || !_stmt) { \
+#define VALIDATE_DB_STMT     \
+    if (!_db || !_stmt) {    \
         return SQLITE_ERROR; \
     }
 
 #define VALIDATE_STMT \
-    if (!_stmt) { \
+    if (!_stmt) {     \
         return false; \
     }
 
-#define VALIDATE_IDX \
+#define VALIDATE_IDX                                    \
     if (idx < 0 || idx > sqlite3_column_count(_stmt)) { \
-        return false; \
+        return false;                                   \
     }
 
 namespace EzSql {
 
 // implement class Stmt
-Stmt::Stmt(sqlite3 *db)
-{
-    _db = db;
-}
+Stmt::Stmt(sqlite3* db) { _db = db; }
 
-int Stmt::prepare(const QString &query)
+int Stmt::prepare(const QString& query)
 {
     if (!_db) {
         return SQLITE_ERROR;
@@ -34,14 +31,14 @@ int Stmt::prepare(const QString &query)
     return sqlite3_prepare_v2(_db, query.toUtf8(), query.toUtf8().size(), &_stmt, nullptr);
 }
 
-int Stmt::bind(int idx, const QByteArray &value)
+int Stmt::bind(int idx, const QByteArray& value)
 {
     VALIDATE_DB_STMT
 
     return sqlite3_bind_blob(_stmt, idx, value, value.size(), SQLITE_TRANSIENT);
 }
 
-int Stmt::bind(int idx, const QString &value)
+int Stmt::bind(int idx, const QString& value)
 {
     VALIDATE_DB_STMT
 
@@ -76,10 +73,7 @@ int Stmt::step()
     return sqlite3_step(_stmt);
 }
 
-Result Stmt::result()
-{
-    return Result(_stmt);
-}
+Result Stmt::result() { return Result(_stmt); }
 
 int Stmt::finalize()
 {
@@ -96,7 +90,7 @@ int Stmt::reset()
 }
 
 // implement class Result
-Result::Result(sqlite3_stmt *stmt)
+Result::Result(sqlite3_stmt* stmt)
 {
     _stmt = stmt;
 
@@ -109,29 +103,29 @@ Result::Result(sqlite3_stmt *stmt)
     }
 }
 
-bool Result::map(QString &value, int idx /*= 0*/)
+bool Result::map(QString& value, int idx /*= 0*/)
 {
     VALIDATE_STMT;
     VALIDATE_IDX;
 
     int sz = sqlite3_column_bytes(_stmt, idx);
-    value = QString::fromUtf8((char *) sqlite3_column_text(_stmt, idx), sz);
+    value = QString::fromUtf8((char*)sqlite3_column_text(_stmt, idx), sz);
 
     return true;
 }
 
-bool Result::map(QByteArray &value, int idx /*=0*/)
+bool Result::map(QByteArray& value, int idx /*=0*/)
 {
     VALIDATE_STMT;
     VALIDATE_IDX;
 
     int sz = sqlite3_column_bytes(_stmt, idx);
-    value = QByteArray((char *) sqlite3_column_blob(_stmt, idx), sz);
+    value = QByteArray((char*)sqlite3_column_blob(_stmt, idx), sz);
 
     return true;
 }
 
-bool Result::map(qint32 &value, int idx /*=0*/)
+bool Result::map(qint32& value, int idx /*=0*/)
 {
     VALIDATE_STMT;
     VALIDATE_IDX;
@@ -141,7 +135,7 @@ bool Result::map(qint32 &value, int idx /*=0*/)
     return true;
 }
 
-bool Result::map(qint64 &value, int idx /*=0*/)
+bool Result::map(qint64& value, int idx /*=0*/)
 {
     VALIDATE_STMT;
     VALIDATE_IDX;
@@ -151,7 +145,7 @@ bool Result::map(qint64 &value, int idx /*=0*/)
     return true;
 }
 
-bool Result::map(double &value, int idx /*=0*/)
+bool Result::map(double& value, int idx /*=0*/)
 {
     VALIDATE_STMT;
     VALIDATE_IDX;
@@ -161,7 +155,7 @@ bool Result::map(double &value, int idx /*=0*/)
     return true;
 }
 
-bool Result::map(bool &value, int idx /*=0*/)
+bool Result::map(bool& value, int idx /*=0*/)
 {
     VALIDATE_STMT;
     VALIDATE_IDX;
@@ -171,7 +165,7 @@ bool Result::map(bool &value, int idx /*=0*/)
     return true;
 }
 
-bool DataBase::open(const OpenParams &params)
+bool DataBase::open(const OpenParams& params)
 {
     if (params.fileName.isEmpty() || !params.flags) {
         return false;
@@ -185,14 +179,13 @@ bool DataBase::open(const OpenParams &params)
     sqlite3_preupdate_hook(
 
         _db,
-        [](void *pCtx,          /* Copy of third arg to preupdate_hook() */
-           sqlite3 *db,         /* Database handle */
+        [](void* pCtx,          /* Copy of third arg to preupdate_hook() */
+           sqlite3* db,         /* Database handle */
            int op,              /* SQLITE_UPDATE, DELETE or INSERT */
-           char const *zDb,     /* Database name */
-           char const *zName,   /* Table name */
+           char const* zDb,     /* Database name */
+           char const* zName,   /* Table name */
            sqlite3_int64 iKey1, /* Rowid of row about to be deleted/updated */
            sqlite3_int64 iKey2) {
-
             qDebug() << "=====================================";
             qDebug() << "name table " << zName;
             qDebug() << "name db " << zDb;
@@ -200,7 +193,6 @@ bool DataBase::open(const OpenParams &params)
             qDebug() << "iKey1 " << iKey1;
             qDebug() << "iKey2 " << iKey2;
             qDebug() << "=====================================";
-
         },
         nullptr);
 
@@ -215,4 +207,4 @@ void DataBase::close()
     }
 }
 
-} // namespace EzSql
+}  // namespace EzSql

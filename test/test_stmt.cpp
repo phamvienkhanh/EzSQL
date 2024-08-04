@@ -18,7 +18,7 @@ class TestStmt : public QObject {
                                  SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX,
                                  nullptr);
 
-        QVERIFY2(rs == SQLITE_OK, "create db failed");        
+        QVERIFY2(rs == SQLITE_OK, "create db failed");
     }
 
     void create_table()
@@ -67,7 +67,6 @@ class TestStmt : public QObject {
         QVERIFY(stmt.bind(":real_value", 0.13) == SQLITE_OK);
         QVERIFY(stmt.step() == SQLITE_DONE);
         QVERIFY(stmt.finalize() == SQLITE_OK);
-
     }
 
     void select()

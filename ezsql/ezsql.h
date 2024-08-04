@@ -1,11 +1,11 @@
 #ifndef EZSQL_H
 #define EZSQL_H
 
+#include <sqlite3.h>
+
 #include <QDebug>
 #include <QMap>
 #include <QString>
-
-#include <sqlite3.h>
 
 namespace EzSql {
 
@@ -109,7 +109,8 @@ class BaseField {
 template <typename T>
 class Field : public BaseField {
   public:
-    Field(T* value, const QString& name, int index, const QString& sqlType, const QString& constraint)
+    Field(T* value, const QString& name, int index, const QString& sqlType,
+          const QString& constraint)
     {
         _index = index;
         _value = value;
@@ -202,7 +203,7 @@ class BaseDBO {
         if (_id && !_id->columnConstraint().toUpper().contains("AUTOINCREMENT")) {
             idx += 1;
             rs = _id->bind(stmt, idx);
-            if(rs != SQLITE_OK) {
+            if (rs != SQLITE_OK) {
                 return rs;
             }
         }
@@ -212,7 +213,7 @@ class BaseDBO {
             it.next();
             idx += 1;
             rs = it.value()->bind(stmt, idx);
-            if(rs != SQLITE_OK) {
+            if (rs != SQLITE_OK) {
                 return rs;
             }
         }
@@ -220,11 +221,11 @@ class BaseDBO {
         return SQLITE_OK;
     }
 
-    int bind(Stmt &stmt, const QStringList &fields)
+    int bind(Stmt& stmt, const QStringList& fields)
     {
         int rs;
 
-        for (auto &col : fields) {
+        for (auto& col : fields) {
             if (_id->name() == col) {
                 rs = _id->bind(stmt);
                 if (rs != SQLITE_OK) {
@@ -345,9 +346,9 @@ class BaseDBO {
             Q_ASSERT_X(false, "BaseDBO::updateStmt", "cant update dbo without id field");
         }
 
-        if(!columns.isEmpty()) {
-            for(const auto& iCol : columns) {
-                if(_field.contains(iCol)) {
+        if (!columns.isEmpty()) {
+            for (const auto& iCol : columns) {
+                if (_field.contains(iCol)) {
                     listFields = listFields + QString("%1=:%1, ").arg(iCol);
                 }
             }
@@ -357,20 +358,20 @@ class BaseDBO {
             while (i.hasNext()) {
                 i.next();
                 listFields = listFields + QString("%1=:%1, ").arg(i.key());
-            }            
+            }
         }
         listFields.chop(2);
-        
-        QString stmt = "UPDATE " + _tableName + " SET " + listFields + " WHERE " + QString("%1=:%1").arg(_id->name());
+
+        QString stmt = "UPDATE " + _tableName + " SET " + listFields + " WHERE " +
+                       QString("%1=:%1").arg(_id->name());
 
         return stmt;
     }
 
-    QString dropStmt() {
-        return "DROP TABLE IF EXISTS " + _tableName;
-    }
+    QString dropStmt() { return "DROP TABLE IF EXISTS " + _tableName; }
 
-    QStringList allFieldName() {
+    QStringList allFieldName()
+    {
         QStringList fieldsName = _field.keys();
         fieldsName << _id->name();
         return fieldsName;
@@ -383,7 +384,7 @@ class BaseDBO {
     {
         if (!_field.contains(name)) {
             int fieldIndex = _fieldIndex.count() + 1;
-            BaseField* field = new Field(value, name, fieldIndex,  sqlType, constraint);
+            BaseField* field = new Field(value, name, fieldIndex, sqlType, constraint);
             _field.insert(name, field);
             _fieldIndex.insert(name, fieldIndex);
         }
@@ -412,27 +413,26 @@ class BaseDBO {
     QString _tableName;
 };
 
-class DataBase
-{
-public:
-    struct OpenParams
-    {
+class DataBase {
+  public:
+    struct OpenParams {
         QString fileName;
         int flags = 0;
     };
 
-public:
+  public:
     DataBase() = default;
     bool open(const OpenParams& params);
     void close();
-    sqlite3* connection() const {return _db;}
+    sqlite3* connection() const { return _db; }
     virtual void onPreUpdate() {}
 
-    template<typename T>
-    bool createTable() {
+    template <typename T>
+    bool createTable()
+    {
         static_assert(std::is_base_of_v<BaseDBO, T>, "Error: type T must base on BaseDBO");
 
-        if(!_db) {
+        if (!_db) {
             return false;
         }
 
@@ -441,20 +441,20 @@ public:
 
         QString queryCreate = tb.createStmt();
         Stmt stmt(_db);
-        if(stmt.prepare(queryCreate) != SQLITE_OK) {
+        if (stmt.prepare(queryCreate) != SQLITE_OK) {
             return false;
         }
-        if(stmt.step() != SQLITE_DONE) {
+        if (stmt.step() != SQLITE_DONE) {
             return false;
         }
-        if(stmt.finalize() != SQLITE_OK) {
+        if (stmt.finalize() != SQLITE_OK) {
             return false;
         }
 
         return true;
     }
 
-private:
+  private:
     sqlite3* _db = nullptr;
 };
 
